@@ -1,19 +1,23 @@
 ---
-layout: page
-title: "Amazon Aurora — From Cluster Basics to DR"
-permalink: /aurora-guide/
+layout: default
+title: Amazon Aurora Guide
+nav_order: 2
 ---
 
 # Amazon Aurora — From Cluster Basics to DR
 {: .no_toc }
 
 A comprehensive guide covering Aurora architecture, endpoints, sizing, storage, security, monitoring, high availability, backups, and disaster recovery.
+{: .fs-6 .fw-300 }
 
-## Table of Contents
-{: .no_toc }
-
+<details open markdown="block">
+  <summary>
+    Table of contents
+  </summary>
+  {: .text-delta }
 - TOC
 {:toc}
+</details>
 
 ---
 
@@ -27,12 +31,13 @@ An Aurora DB cluster consists of two key components:
 - **DB Instances (Compute):** 1 primary (read/write) + 0–15 Aurora Replicas (read-only)
 - **Cluster Volume (Storage):** A shared, distributed storage volume spanning 3 Availability Zones
 
+{: .highlight }
 > **Key Insight:** All instances read from the *same* shared storage. No replication lag at the storage level — replicas see new data within milliseconds.
 
 ### Traditional RDS vs Aurora
 
 | Feature | Traditional RDS | Aurora |
-|---------|----------------|--------|
+|:--------|:----------------|:-------|
 | Storage | Each instance owns EBS | All share one distributed volume |
 | Replication | Logical (WAL replay) | Shared storage (no replay) |
 | Read Replicas | Max 5 | Up to 15 |
@@ -93,6 +98,7 @@ my-analytics.cluster-custom-xyz123.us-east-1.rds.amazonaws.com
 - During failover: DNS auto-updates → cluster endpoint points to new primary
 - Total failover time with replicas: **~30 seconds**
 
+{: .warning }
 > ⚠️ **Common Mistake:** Don't use instance endpoints for production apps — they won't auto-redirect during failover.
 
 ---
@@ -125,12 +131,13 @@ my-analytics.cluster-custom-xyz123.us-east-1.rds.amazonaws.com
 ### Sizing Decision Guide
 
 | Workload | Recommended | Why |
-|----------|-------------|-----|
+|:---------|:------------|:----|
 | Steady OLTP, 100+ connections | db.r7g.2xlarge (64 GB) | Stable memory, Graviton3 |
 | Small app, < 50 connections | db.r7g.large (16 GB) | Right-sized |
 | Dev/Test | db.t4g.medium (4 GB) | Minimal cost |
 | Variable traffic | Serverless v2 (2–128 ACUs) | Auto-scales |
 
+{: .note }
 > **ACU Conversion:** Instance memory (GB) ÷ 2 = equivalent Serverless v2 max ACUs.
 
 ---
@@ -151,12 +158,13 @@ my-analytics.cluster-custom-xyz123.us-east-1.rds.amazonaws.com
 ### I/O-Optimized vs Standard
 
 | | Aurora Standard | Aurora I/O-Optimized |
-|---|---|---|
+|:---|:---|:---|
 | Storage cost | $0.10/GB-month | $0.225/GB-month |
 | I/O charges | $0.20 per million requests | $0 (zero!) |
 | Best when | I/O < 25% of total spend | I/O ≥ 25% of total spend |
 | Switch | To I/O-Optimized any time | Back to Standard any time |
 
+{: .highlight }
 > **Decision Rule:** If I/O is ≥ 25% of your total Aurora cost → I/O-Optimized saves money. Switch without downtime.
 
 ---
@@ -184,13 +192,14 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Key Parameters
 
 | Parameter | Level | Guidance |
-|-----------|-------|----------|
+|:----------|:------|:---------|
 | `max_connections` | Instance | Based on memory. Use RDS Proxy instead of raising. |
 | `shared_buffers` | Instance | Aurora manages differently. Leave at default. |
 | `require_secure_transport` | Cluster | Set ON for production (enforce TLS). |
 | `server_audit_logging` | Cluster | Enable for compliance. |
 | `performance_schema` | Instance | Enable for Performance Insights (~1-2% overhead). |
 
+{: .important }
 > **Best Practice:** Always create a custom parameter group at cluster creation — the default cannot be modified later.
 
 ---
@@ -226,7 +235,7 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Four Complementary Tools
 
 | Tool | What It Shows | Granularity |
-|------|--------------|-------------|
+|:-----|:-------------|:------------|
 | CloudWatch Metrics | CPU, connections, IOPS, latency, memory | 1-minute (automatic) |
 | Performance Insights | DB load (AAS), wait events, top SQL | Per-second |
 | Enhanced Monitoring | OS-level: per-process CPU, memory, swap | 1-second |
@@ -235,7 +244,7 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Key Alerting Thresholds
 
 | Metric | Threshold | Action |
-|--------|-----------|--------|
+|:-------|:----------|:-------|
 | CPUUtilization | > 80% sustained | Scale up or add replicas |
 | FreeableMemory | < 500 MB | Scale up instance class |
 | DatabaseConnections | > 80% of max | Use RDS Proxy |
@@ -260,7 +269,7 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Automatic Failover Timeline
 
 | Time | Event |
-|------|-------|
+|:-----|:------|
 | 0s | Failure detected |
 | ~5s | DNS TTL expires |
 | ~15s | Replica promoted |
@@ -275,12 +284,13 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### HA Patterns
 
 | Configuration | Failover Time | Connection Handling |
-|---|---|---|
+|:---|:---|:---|
 | Single instance (no HA) | Minutes | Full reconnect required |
 | Multi-AZ replicas | ~30 seconds | Reconnect on DNS update |
 | Multi-AZ + RDS Proxy | ~1-2 seconds (app view) | Proxy holds & redirects |
 
-> **RDS Proxy:** Sits between app and Aurora. Maintains connection pool. During failover, holds connections and redirects to new primary — app sees brief pause, not a disconnect. Best for Lambda, microservices, short-lived connections.
+{: .note }
+> **RDS Proxy:** Sits between app and Aurora. Maintains connection pool. During failover, holds connections and redirects — app sees brief pause, not a disconnect. Best for Lambda, microservices.
 
 ---
 
@@ -291,7 +301,7 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Recovery Options
 
 | Method | Retention | Speed | Result | Engine |
-|--------|-----------|-------|--------|--------|
+|:-------|:----------|:------|:-------|:-------|
 | Automated Continuous | 1–35 days | Fast | Per-second PITR | Both |
 | Manual Snapshot | Forever | Medium | New cluster | Both |
 | PITR | Within retention | Minutes | New cluster | Both |
@@ -301,13 +311,14 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### When to Use Each
 
 | Scenario | Best Method |
-|----------|-------------|
+|:---------|:------------|
 | Accidental DELETE (< 72h) | Backtrack (MySQL only) |
 | Exact timestamp recovery | PITR |
 | Before risky deployment | Manual Snapshot |
 | Cross-region DR copy | Snapshot Copy |
 | Test with prod data | Clone (copy-on-write) |
 
+{: .highlight }
 > **Aurora Cloning:** Creates full copy via copy-on-write. Near-instant, no extra cost initially. Perfect for testing with production data.
 
 ---
@@ -319,7 +330,7 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Aurora Global Database
 
 | Metric | Value |
-|--------|-------|
+|:-------|:------|
 | **RPO** | ~1 second |
 | **RTO** | < 1 minute |
 | **Secondary Regions** | Up to 5 |
@@ -328,7 +339,7 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Switchover vs Failover
 
 | | Managed Switchover | Unplanned Failover |
-|---|---|---|
+|:---|:---|:---|
 | When | Planned migration | Region outage |
 | Data loss | Zero | ~1-5 seconds |
 | Downtime | ~1-2 min | < 1 min |
@@ -337,13 +348,14 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ### Global Database vs Snapshot Copy
 
 | Feature | Global Database | Snapshot Copy |
-|---------|----------------|--------------|
+|:--------|:----------------|:--------------|
 | Replication | Continuous | Manual/scheduled |
 | RPO | ~1 second | Hours |
 | RTO | < 1 minute | 30-60 minutes |
 | Serve reads in DR | Yes | No |
 | Cost | Full cluster in secondary | Snapshot storage only |
 
+{: .note }
 > **Headless Clusters:** Secondary region doesn't need compute until failover. Storage replication runs without instances — add compute only during promotion. Saves significant DR cost.
 
 ---
@@ -351,7 +363,7 @@ Cluster Param Group → overridden by → DB Param Group → Final Value
 ## Summary
 
 | # | Topic | Key Takeaway |
-|---|-------|-------------|
+|:--|:------|:-------------|
 | 1 | Architecture | Compute/storage separation, primary + up to 15 replicas |
 | 2 | Endpoints | 4 types, DNS-based failover routing (5s TTL) |
 | 3 | Sizing | R-series (prod) / T-series (dev) / Serverless v2 (variable) |

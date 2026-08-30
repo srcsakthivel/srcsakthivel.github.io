@@ -3,6 +3,9 @@ description: AWS architecture guides and learning resources
 remote_theme: just-the-docs/just-the-docs
 color_scheme: dark
 
+plugins:
+  - jekyll-remote-theme
+
 # Footer
 aux_links:
   "GitHub":
